@@ -57,10 +57,14 @@ fi
 [ -f "$SRC/arch/arm64/configs/$DEFCONFIG" ] || die "defconfig not found: arch/arm64/configs/$DEFCONFIG"
 
 # ---------------------------------------------------------------- 2
-if [ ! -x "$TOOLS/clang/bin/clang" ]; then
+if [ ! -d "$TOOLS/clang/.git" ]; then
   log "Fetching AOSP clang ($CLANG_BRANCH)"
   git clone --depth 1 -b "$CLANG_BRANCH" "$CLANG_REPO" "$TOOLS/clang"
 fi
+# AOSP prebuilt layout: tools live in clang-r<rev>/bin, NOT clang/bin
+CLANG_BIN="$(ls -d "$TOOLS/clang"/clang-r*/bin 2>/dev/null | head -1)"
+[ -n "$CLANG_BIN" ] && [ -x "$CLANG_BIN/clang" ] || die "clang prebuilt not found under $TOOLS/clang (expected clang-r*/bin)"
+log "Using clang toolchain at $CLANG_BIN"
 if [ ! -d "$TOOLS/gcc64/bin" ]; then
   log "Fetching aarch64 GCC 4.9 prebuilt (binutils/linker)"
   git clone --depth 1 "$GCC64_REPO" "$TOOLS/gcc64"
@@ -69,7 +73,11 @@ if [ ! -d "$TOOLS/gcc32/bin" ]; then
   log "Fetching arm GCC 4.9 prebuilt (compat binutils)"
   git clone --depth 1 "$GCC32_REPO" "$TOOLS/gcc32"
 fi
-export PATH="$TOOLS/clang/bin:$TOOLS/gcc64/bin:$TOOLS/gcc32/bin:$PATH"
+export PATH="$CLANG_BIN:$TOOLS/gcc64/bin:$TOOLS/gcc32/bin:$PATH"
+# sanity: everything the build needs must resolve now
+for t in clang ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip; do
+  command -v "$t" >/dev/null 2>&1 || die "required tool missing from PATH: $t"
+done
 
 # ---------------------------------------------------------------- 3
 # Realtek RTL8812AU/8821AU (aircrack-ng 88XXau) — placed in-tree
@@ -115,9 +123,8 @@ grep -q "CONFIG_RT2800USB=y" "$OUT/.config" || die "CONFIG_RT2800USB did not sur
 
 # ---------------------------------------------------------------- 6
 log "Toolchain versions"
-clang --version 2>/dev/null | head -n 1 || true
-ld.lld --version 2>/dev/null | head -n 1 || echo "ld.lld NOT in PATH (should come from clang prebuilt)"
-command -v ld.lld || true
+echo "clang  : $(command -v clang)  —  $(clang --version 2>/dev/null | head -n 1)"
+echo "ld.lld : $(command -v ld.lld)  —  $(ld.lld --version 2>/dev/null | head -n 1)"
 
 log "Compiling kernel ($JOBS jobs) — this takes a while (full log in $OUT/build.log)"
 BUILD_LOG="$OUT/build.log"
