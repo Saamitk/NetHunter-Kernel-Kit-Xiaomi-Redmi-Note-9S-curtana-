@@ -8,10 +8,6 @@
 # and re-uses the ramdisk, dtb, cmdline and header parameters of YOUR
 # device's boot image, so the result stays compatible with your exact
 # MIUI build (V14.0.3.0.SJWMIXM).
-#
-# If you pass your current Magisk-patched boot.img, root is preserved
-# automatically. If you pass a stock boot.img, re-patch the resulting
-# image in the Magisk app afterwards.
 # =====================================================================
 set -euo pipefail
 
@@ -29,8 +25,8 @@ die()  { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 
 [ $# -ge 1 ] || die "usage: $0 /path/to/boot.img   (stock or Magisk-patched)"
 STOCK_BOOT="$1"
-[ -f "$STOCK_BOOT" ]        || die "not found: $STOCK_BOOT"
-[ -f "$KERNEL_IMG" ]        || die "new kernel not found: $KERNEL_IMG — run scripts/build.sh first"
+[ -f "$STOCK_BOOT" ]          || die "not found: $STOCK_BOOT"
+[ -f "$KERNEL_IMG" ]          || die "new kernel not found: $KERNEL_IMG — run scripts/build.sh first"
 command -v python3 >/dev/null || die "python3 is required"
 
 # ------------------------------------------------------------------ 1
@@ -38,82 +34,84 @@ if [ ! -d "$TOOLS/mkbootimg-tools" ]; then
   log "Fetching AOSP mkbootimg / unpack_bootimg tools"
   git clone --depth 1 https://android.googlesource.com/platform/system/tools/mkbootimg "$TOOLS/mkbootimg-tools"
 fi
-export PYTHONPATH="$TOOLS/mkbootimg-tools${PYTHONPATH:+:$PYTHONPATH}"
 
 # ------------------------------------------------------------------ 2
 log "Unpacking your boot image: $STOCK_BOOT"
 rm -rf "$UNPACK_DIR"; mkdir -p "$UNPACK_DIR"
 python3 "$TOOLS/mkbootimg-tools/unpack_bootimg.py" \
   --boot_img "$STOCK_BOOT" --out "$UNPACK_DIR" --format mkbootimg \
-  | tee "$UNPACK_DIR/unpack.log"
+  2>&1 | tee "$UNPACK_DIR/unpack.log"
 
 # ------------------------------------------------------------------ 3
-# Parse the mkbootimg command emitted by unpack_bootimg and rebuild the
-# image with our new kernel. Everything else (ramdisk, dtb, cmdline,
-# header version, offsets, os patch level) is kept from the original.
+# Parse the arguments emitted by unpack_bootimg (a bare "--header_version ..."
+# line, optionally prefixed with "mkbootimg"), swap in the new kernel and
+# rebuild the image with mkbootimg.py — keeping the stock ramdisk/dtb/cmdline.
 log "Repacking with the new kernel"
-python3 - "$UNPACK_DIR" "$KERNEL_IMG" "$FINAL_IMG" <<'PYEOF'
-import shlex, subprocess, sys, os
+python3 - "$UNPACK_DIR" "$KERNEL_IMG" "$FINAL_IMG" "$TOOLS/mkbootimg-tools" <<'PYEOF'
+import os, shlex, subprocess, sys
 
-unpack_dir, new_kernel, out_img = sys.argv[1], sys.argv[2], sys.argv[3]
-tools = os.path.join(os.path.dirname(unpack_dir), "tools", "mkbootimg-tools")
+unpack_dir, new_kernel, out_img, tools = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 
 with open(os.path.join(unpack_dir, "unpack.log")) as f:
     log = f.read()
 
-cmd = None
+args = None
 for line in log.splitlines():
     line = line.strip()
-    if line.startswith("mkbootimg"):
-        cmd = line
+    if not line:
+        continue
+    try:
+        toks = shlex.split(line)
+    except ValueError:
+        continue
+    if toks and toks[0] == "mkbootimg":
+        toks = toks[1:]
+    # the arguments line: starts with an option and contains --kernel
+    if toks and toks[0].startswith("--") and "--kernel" in toks:
+        args = toks
         break
-if cmd is None:
-    sys.exit("could not find the mkbootimg command in unpack output")
 
-args = shlex.split(cmd)
+if args is None:
+    print(log)
+    sys.exit("could not parse unpack_bootimg output — see log above")
 
-def set_arg(args, name, value):
-    if name in args:
-        args[args.index(name) + 1] = value
+def set_arg(a, name, value):
+    if name in a:
+        a[a.index(name) + 1] = value
     else:
-        args += [name, value]
+        a += [name, value]
 
 # swap in the freshly built kernel
 set_arg(args, "--kernel", new_kernel)
 
-# keep the stock dtb if it was extracted; else keep ours if we built dtbs
+# dtb: keep the one extracted from the stock image if present
 dtb = os.path.join(unpack_dir, "dtb")
-if not (os.path.exists(dtb) and os.path.getsize(dtb) > 0):
-    dtbs_dir = os.path.normpath(os.path.join(unpack_dir, "..", "out", "dtbs"))
-    built = sorted(
-        os.path.join(dtbs_dir, f) for f in os.listdir(dtbs_dir)
-    ) if os.path.isdir(dtbs_dir) else []
-    if built:
-        joined = os.path.join(unpack_dir, "dtb-built")
-        with open(joined, "wb") as o:
-            for b in built:
-                o.write(open(b, "rb").read())
-        dtb = joined
-    else:
-        dtb = None
-
-if dtb:
-    if "--dtb" in args:
-        set_arg(args, "--dtb", dtb)
-    else:
+if "--dtb" not in args:
+    if os.path.exists(dtb) and os.path.getsize(dtb) > 0:
         args += ["--dtb", dtb]
+    else:
+        dtbs_dir = os.path.normpath(os.path.join(unpack_dir, "..", "out", "dtbs"))
+        if os.path.isdir(dtbs_dir):
+            built = sorted(os.path.join(dtbs_dir, f) for f in os.listdir(dtbs_dir))
+            if built:
+                joined = os.path.join(unpack_dir, "dtb-built")
+                with open(joined, "wb") as o:
+                    for b in built:
+                        o.write(open(b, "rb").read())
+                args += ["--dtb", joined]
 
 set_arg(args, "--output", out_img)
 
 script = os.path.join(tools, "mkbootimg.py")
-print("running:", " ".join([script] + args[1:]))
-subprocess.check_call([sys.executable, script] + args[1:])
+print("running: python3", script, " ".join(args))
+subprocess.check_call([sys.executable, script] + args)
 PYEOF
 
 [ -s "$FINAL_IMG" ] || die "repack failed"
 
 log "Done"
 ls -lh "$FINAL_IMG"
+sha256sum "$FINAL_IMG" || true
 echo
 echo "Flashable image : $FINAL_IMG"
 echo "Flash it with SmartPack-Kernel-Manager (Flasher -> flash boot image),"
