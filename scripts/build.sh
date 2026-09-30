@@ -117,6 +117,7 @@ grep -q "CONFIG_RT2800USB=y" "$OUT/.config" || die "CONFIG_RT2800USB did not sur
 log "Compiling kernel ($JOBS jobs) — this takes a while"
 make -C "$SRC" O="$OUT" -j"$JOBS" \
   CC=clang \
+  CLANG_TRIPLE=aarch64-linux-gnu- \
   CROSS_COMPILE=aarch64-linux-android- \
   CROSS_COMPILE_COMPAT=arm-linux-androideabi- \
   Image.gz modules 2>&1 | tail -n 5
@@ -126,7 +127,8 @@ KERNEL_IMG="$OUT/arch/arm64/boot/Image.gz"
 # --- optional: device-tree blobs (fallback for pack_boot.sh if the
 #     stock boot image carries no separate dtb section) -----------------
 if make -C "$SRC" O="$OUT" -j"$JOBS" \
-     CC=clang CROSS_COMPILE=aarch64-linux-android- \
+     CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
+     CROSS_COMPILE=aarch64-linux-android- \
      CROSS_COMPILE_COMPAT=arm-linux-androideabi- dtbs 2>/dev/null; then
   mkdir -p "$KIT_DIR/out/dtbs"
   find "$OUT" -name '*.dtb' -exec cp {} "$KIT_DIR/out/dtbs/" \; 2>/dev/null || true
