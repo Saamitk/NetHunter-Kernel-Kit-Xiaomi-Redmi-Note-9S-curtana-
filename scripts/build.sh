@@ -114,13 +114,29 @@ grep -q "CONFIG_RT2800USB=y" "$OUT/.config" || die "CONFIG_RT2800USB did not sur
 [ "$SKIP_RTL8812AU" = "1" ] || grep -q "CONFIG_88XXAU=y" "$OUT/.config" || warn "CONFIG_88XXAU missing — RTL8812AU will NOT be built (re-run with SKIP_RTL8812AU=1 to silence)"
 
 # ---------------------------------------------------------------- 6
-log "Compiling kernel ($JOBS jobs) — this takes a while"
-make -C "$SRC" O="$OUT" -j"$JOBS" \
+log "Toolchain versions"
+clang --version 2>/dev/null | head -n 1 || true
+ld.lld --version 2>/dev/null | head -n 1 || echo "ld.lld NOT in PATH (should come from clang prebuilt)"
+command -v ld.lld || true
+
+log "Compiling kernel ($JOBS jobs) — this takes a while (full log in $OUT/build.log)"
+BUILD_LOG="$OUT/build.log"
+if ! make -C "$SRC" O="$OUT" -j"$JOBS" \
   CC=clang \
   CLANG_TRIPLE=aarch64-linux-gnu- \
+  LD=ld.lld AR=llvm-ar NM=llvm-nm STRIP=llvm-strip \
+  OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump \
   CROSS_COMPILE=aarch64-linux-android- \
   CROSS_COMPILE_COMPAT=arm-linux-androideabi- \
-  Image.gz modules 2>&1 | tail -n 5
+  Image.gz modules > "$BUILD_LOG" 2>&1; then
+  echo "==============================================================="
+  echo "BUILD FAILED — showing error context from $BUILD_LOG"
+  echo "==============================================================="
+  grep -n -iE "error|undefined|cannot|no such|not found" "$BUILD_LOG" | head -n 40 || true
+  echo "---- last 90 lines of build log ----"
+  tail -n 90 "$BUILD_LOG"
+  exit 1
+fi
 KERNEL_IMG="$OUT/arch/arm64/boot/Image.gz"
 [ -s "$KERNEL_IMG" ] || die "build failed: Image.gz not found"
 
@@ -128,6 +144,8 @@ KERNEL_IMG="$OUT/arch/arm64/boot/Image.gz"
 #     stock boot image carries no separate dtb section) -----------------
 if make -C "$SRC" O="$OUT" -j"$JOBS" \
      CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
+     LD=ld.lld AR=llvm-ar NM=llvm-nm STRIP=llvm-strip \
+     OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump \
      CROSS_COMPILE=aarch64-linux-android- \
      CROSS_COMPILE_COMPAT=arm-linux-androideabi- dtbs 2>/dev/null; then
   mkdir -p "$KIT_DIR/out/dtbs"
