@@ -88,6 +88,10 @@ elif [ ! -d "$SRC/drivers/net/wireless/rtl8812au" ]; then
   git clone --depth 1 "$RTL8812AU_REPO" "$SRC/drivers/net/wireless/rtl8812au"
   sed -i 's/^CONFIG_88XXAU *= *m/CONFIG_88XXAU = y/'      "$SRC/drivers/net/wireless/rtl8812au/Makefile"
   sed -i 's/^CONFIG_PLATFORM_I386_PC *= *y/CONFIG_PLATFORM_I386_PC = n/' "$SRC/drivers/net/wireless/rtl8812au/Makefile"
+  # GCC-only warning flags (e.g. -Wno-stringop-overread, -Wno-cast-function-type)
+  # are fatal under clang because the tree builds with -Werror=unknown-warning-option.
+  # They only suppress warnings, so dropping them all is safe.
+  sed -i -E 's/-Wno-[a-zA-Z0-9=-]+//g' "$SRC/drivers/net/wireless/rtl8812au/Makefile"
   grep -q 'rtl8812au' "$SRC/drivers/net/wireless/Kconfig" ||
     echo 'source "drivers/net/wireless/rtl8812au/Kconfig"' >> "$SRC/drivers/net/wireless/Kconfig"
   grep -q 'rtl8812au' "$SRC/drivers/net/wireless/Makefile" ||
