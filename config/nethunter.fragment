@@ -1,0 +1,105 @@
+# =====================================================================
+# NetHunter / external-WiFi config fragment
+# Device : Xiaomi Redmi Note 9S (curtana) / miatoll family (sm6250)
+# Kernel : Linux 4.14 (LineageOS android_kernel_xiaomi_sm6250)
+#
+# This fragment is appended to .config by scripts/build.sh and then
+# resolved with `make olddefconfig`. Do not edit the __FW_*__
+# placeholders — they are substituted at build time.
+# =====================================================================
+
+# --- Version tag (visible in `uname -a`) ---
+CONFIG_LOCALVERSION="-nethunter-miatoll"
+
+# --- 802.11 core (CONFIG_CFG80211=y already present in stock config) ---
+CONFIG_CFG80211_WEXT=y
+CONFIG_MAC80211=y
+CONFIG_MAC80211_HAS_RC=y
+CONFIG_MAC80211_RC_MINSTREL=y
+CONFIG_MAC80211_RC_MINSTREL_HT=y
+CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y
+CONFIG_MAC80211_LEDS=y
+CONFIG_MAC80211_DEBUGFS=y
+
+# --- Networking basics used by audit tools ---
+CONFIG_PACKET=y
+CONFIG_TUN=y
+
+# =====================================================================
+# Atheros AR9271  —  TP-Link TL-WN722N V1  (monitor + injection)
+#
+# MUST stay a module (=m): building it into vmlinux fails at link time
+# with "duplicate symbol: htc_stop" because the stock Qualcomm Wi-Fi
+# stack (qca-wifi-host-cmn, built-in) exports the same symbols.
+# The .ko is shipped through the generated Magisk module instead.
+# =====================================================================
+CONFIG_WLAN_VENDOR_ATH=y
+CONFIG_ATH_CARDS=y
+CONFIG_ATH9K_HTC=m
+CONFIG_ATH9K_HTC_DEBUGFS=y
+
+# =====================================================================
+# Ralink RT2870 / RT3070 / RT3572 / RT5370 / RT5572  (rt2800usb)
+# monitor + injection  —  firmware: rt2870.bin (baked in below)
+# =====================================================================
+CONFIG_WLAN_VENDOR_RALINK=y
+CONFIG_RT2X00=y
+CONFIG_RT2X00_LIB=y
+CONFIG_RT2X00_LIB_USB=y
+CONFIG_RT2X00_LIB_FIRMWARE=y
+CONFIG_RT2X00_LIB_CRYPTO=y
+CONFIG_RT2800USB=y
+CONFIG_RT2800USB_RT33XX=y
+CONFIG_RT2800USB_RT35XX=y
+CONFIG_RT2800USB_RT3573=y
+CONFIG_RT2800USB_RT53XX=y
+CONFIG_RT2800USB_RT55XX=y
+CONFIG_RT2800USB_UNKNOWN=y
+
+# --- MediaTek MT7601U (very common cheap dongles, monitor + injection) ---
+CONFIG_WLAN_VENDOR_MEDIATEK=y
+CONFIG_MT7601U=y
+
+# --- Realtek rtl8xxxu (RTL8188EU/8192EU — TL-WN722N V2/V3, client mode) ---
+CONFIG_WLAN_VENDOR_REALTEK=y
+CONFIG_RTL8XXXU=y
+CONFIG_RTL8XXXU_UNTESTED=y
+
+# --- Realtek RTL8812AU/8821AU (aircrack-ng 88XXau driver, added in-tree
+#     by build.sh; monitor + injection, no firmware required) ---
+CONFIG_88XXAU=y
+
+# =====================================================================
+# Firmware baked into the kernel image.
+# Android keeps adapter firmware in /vendor/firmware, which Magisk
+# modules cannot overlay on dynamic-partition devices — embedding the
+# blobs removes that problem entirely.
+# =====================================================================
+CONFIG_FW_LOADER=y
+CONFIG_EXTRA_FIRMWARE="__FW_LIST__"
+CONFIG_EXTRA_FIRMWARE_DIR="__FW_DIR__"
+
+# =====================================================================
+# Module signature: stock forces signed-only modules, which would
+# reject ath9k_htc.ko. Relax it so our module can insmod.
+# =====================================================================
+CONFIG_MODULE_SIG_FORCE=n
+CONFIG_MODULE_SIG=n
+
+# --- USB Ethernet adapters (NetHunter bonus: USB NICs / RNDIS tether) ---
+CONFIG_USB_NET_DRIVERS=y
+CONFIG_USB_USBNET=y
+CONFIG_USB_NET_CDCETHER=y
+CONFIG_USB_NET_CDC_NCM=y
+CONFIG_USB_NET_RNDIS_HOST=y
+CONFIG_USB_NET_AX88179_178A=y
+CONFIG_USB_NET_SMSC75XX=y
+CONFIG_USB_NET_SMSC95XX=y
+CONFIG_USB_NET_DM9601=y
+# (CONFIG_USB_RTL8152 for RTL8152/8153 is already =y in stock config)
+
+# --- HID gadget is already enabled in stock (CONFIG_USB_CONFIGFS_F_HID=y),
+#     so USB HID / Rubber-Ducky style attacks work out of the box. ---
+
+# --- Visibility for debugging ---
+CONFIG_USB_MON=y
