@@ -1,0 +1,42 @@
+# =====================================================================
+# Optional: build the kernel on GitHub Actions (no Linux PC needed).
+#
+# 1. Push this whole folder to a (private!) GitHub repo.
+# 2. Put your device's boot.img at the repo root (see README).
+# 3. GitHub -> Actions -> "Build curtana NetHunter kernel" -> Run workflow
+# 4. Download the "curtana-nethunter" artifact when it finishes
+#    (~35-60 min on the free runners).
+# =====================================================================
+name: Build curtana NetHunter kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc bison flex \
+            libssl-dev libelf-dev lz4 python3
+
+      - name: Build kernel
+        run: bash scripts/build.sh
+
+      - name: Pack boot.img
+        run: bash scripts/pack_boot.sh boot.img
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: curtana-nethunter
+          path: |
+            out/boot-nethunter-curtana.img
+            out/nethunter-usb-wifi-magisk.zip
+            out/modules/
+            
