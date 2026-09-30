@@ -92,6 +92,13 @@ elif [ ! -d "$SRC/drivers/net/wireless/rtl8812au" ]; then
   # are fatal under clang because the tree builds with -Werror=unknown-warning-option.
   # They only suppress warnings, so dropping them all is safe.
   sed -i -E 's/-Wno-[a-zA-Z0-9=-]+//g' "$SRC/drivers/net/wireless/rtl8812au/Makefile"
+  # The driver only defines CONFIG_IOCTL_CFG80211 inside platform blocks
+  # (I386_PC/RPi/Android...), which we deliberately don't enable. Without it,
+  # rtw_ap.c references sta_info members that sta_info.h guards behind the
+  # ifdef -> compile error. Inject the defines unconditionally.
+  grep -q 'NETHUNTER_RTW_FLAGS' "$SRC/drivers/net/wireless/rtl8812au/Makefile" || \
+    sed -i '1a EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT -DCONFIG_LITTLE_ENDIAN # NETHUNTER_RTW_FLAGS' \
+      "$SRC/drivers/net/wireless/rtl8812au/Makefile"
   grep -q 'rtl8812au' "$SRC/drivers/net/wireless/Kconfig" ||
     echo 'source "drivers/net/wireless/rtl8812au/Kconfig"' >> "$SRC/drivers/net/wireless/Kconfig"
   grep -q 'rtl8812au' "$SRC/drivers/net/wireless/Makefile" ||
