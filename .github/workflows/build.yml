@@ -1,11 +1,15 @@
 # =====================================================================
-# Optional: build the kernel on GitHub Actions (no Linux PC needed).
+# Build the NetHunter kernel on GitHub Actions (no Linux PC needed).
 #
-# 1. Push this whole folder to a (private!) GitHub repo.
-# 2. Put your device's boot.img at the repo root (see README).
-# 3. GitHub -> Actions -> "Build curtana NetHunter kernel" -> Run workflow
-# 4. Download the "curtana-nethunter" artifact when it finishes
-#    (~35-60 min on the free runners).
+# Put your device's boot image at the repo root as ONE of:
+#   boot.zip      (recommended — zipped boot.img, gets under GitHub's
+#                  100 MB limit since boot.img is mostly zero padding)
+#   boot.img.gz   (gzipped boot.img)
+#   boot.img      (only if it's under 100 MB)
+#
+# GitHub -> Actions -> "Build curtana NetHunter kernel" -> Run workflow
+# Download the "curtana-nethunter" artifact when it finishes
+# (~35-60 min on the free runners).
 # =====================================================================
 name: Build curtana NetHunter kernel
 
@@ -23,7 +27,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential bc bison flex \
-            libssl-dev libelf-dev lz4 python3
+            libssl-dev libelf-dev lz4 python3 unzip
+
+      - name: Prepare boot.img (unzip / gunzip if needed)
+        run: |
+          if [ -f boot.zip ]; then
+            unzip -o boot.zip
+            FOUND=$(find . -maxdepth 2 -name '*.img' ! -name 'boot.img' | head -1)
+            [ -n "$FOUND" ] && mv "$FOUND" boot.img
+          elif [ -f boot.img.gz ]; then
+            gunzip -kf boot.img.gz
+          fi
+          test -s boot.img || { echo "::error::Put boot.zip / boot.img.gz / boot.img at the repo root"; exit 1; }
+          ls -lh boot.img
 
       - name: Build kernel
         run: bash scripts/build.sh
@@ -39,4 +55,3 @@ jobs:
             out/boot-nethunter-curtana.img
             out/nethunter-usb-wifi-magisk.zip
             out/modules/
-            
