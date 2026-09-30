@@ -129,7 +129,7 @@ echo "ld.lld : $(command -v ld.lld)  —  $(ld.lld --version 2>/dev/null | head 
 log "Compiling kernel ($JOBS jobs) — this takes a while (full log in $OUT/build.log)"
 BUILD_LOG="$OUT/build.log"
 if ! make -C "$SRC" O="$OUT" -j"$JOBS" \
-  CC=clang \
+  CC=clang LLVM_IAS=1 \
   CLANG_TRIPLE=aarch64-linux-gnu- \
   LD=ld.lld AR=llvm-ar NM=llvm-nm STRIP=llvm-strip \
   OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump \
@@ -150,7 +150,7 @@ KERNEL_IMG="$OUT/arch/arm64/boot/Image.gz"
 # --- optional: device-tree blobs (fallback for pack_boot.sh if the
 #     stock boot image carries no separate dtb section) -----------------
 if make -C "$SRC" O="$OUT" -j"$JOBS" \
-     CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
+     CC=clang LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- \
      LD=ld.lld AR=llvm-ar NM=llvm-nm STRIP=llvm-strip \
      OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump \
      CROSS_COMPILE=aarch64-linux-android- \
