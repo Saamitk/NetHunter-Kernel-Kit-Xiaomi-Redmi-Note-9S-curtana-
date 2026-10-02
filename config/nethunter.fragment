@@ -101,5 +101,18 @@ CONFIG_USB_NET_DM9601=y
 # --- HID gadget is already enabled in stock (CONFIG_USB_CONFIGFS_F_HID=y),
 #     so USB HID / Rubber-Ducky style attacks work out of the box. ---
 
+# =====================================================================
+# ION heaps — CRITICAL for MIUI.
+# Stock LOS defconfig sets CONFIG_ION=y but compiles NO heaps, which
+# gives /dev/ion with zero heaps: MIUI's gralloc/SurfaceFlinger cannot
+# allocate graphics buffers -> phone boots to a dim BLACK SCREEN.
+# Also enable DMA-BUF heaps (Android 12 userspace may use them).
+# =====================================================================
+CONFIG_ION_SYSTEM_HEAP=y
+CONFIG_ION_CMA_HEAP=y
+CONFIG_DMABUF_HEAPS=y
+CONFIG_DMABUF_HEAPS_SYSTEM=y
+CONFIG_DMABUF_HEAPS_CMA=y
+
 # --- Visibility for debugging ---
 CONFIG_USB_MON=y
