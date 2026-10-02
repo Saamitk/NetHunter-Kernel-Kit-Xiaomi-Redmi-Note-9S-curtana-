@@ -110,9 +110,8 @@ CONFIG_USB_NET_DM9601=y
 # =====================================================================
 CONFIG_ION_SYSTEM_HEAP=y
 CONFIG_ION_CMA_HEAP=y
-CONFIG_DMABUF_HEAPS=y
-CONFIG_DMABUF_HEAPS_SYSTEM=y
-CONFIG_DMABUF_HEAPS_CMA=y
+# (CONFIG_DMABUF_HEAPS* deliberately absent: symbol does not exist in this
+#  4.14 QC tree — olddefconfig would drop it anyway)
 
 # --- Visibility for debugging ---
 CONFIG_USB_MON=y
