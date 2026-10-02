@@ -12,7 +12,12 @@
 set -euo pipefail
 
 KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORK="${WORK_DIR:-$KIT_DIR/work}"
+# The build happens under a SHORT path on purpose:
+# qcacld-3.0's hdd sources are compiled with hundreds of -I/-D flags, so a long
+# workspace path (GitHub Actions repeats the repo name twice) pushes the
+# compiler command past Linux's ARG_MAX -> "/bin/sh: Argument list too long"
+# -> "Error 127". Keep this in /tmp unless you have a reason not to.
+WORK="${WORK_DIR:-/tmp/nhk}"
 SRC="$WORK/kernel"
 OUT="$WORK/out"
 TOOLS="$WORK/tools"
@@ -162,9 +167,15 @@ if ! make -C "$SRC" O="$OUT" -j"$JOBS" \
   echo ""
   echo "---- last 90 lines of build log ----"
   tail -n 90 "$BUILD_LOG"
+  mkdir -p "$KIT_DIR/out"
+  cp -f "$BUILD_LOG" "$KIT_DIR/out/build.log" 2>/dev/null || true
   exit 1
 fi
-KERNEL_IMG="$OUT/arch/arm64/boot/Image.gz"
+# Mirror the kernel image back into the workspace (pack_boot.sh expects
+# work/out/arch/arm64/boot/Image.gz; the live build tree lives in /tmp).
+mkdir -p "$KIT_DIR/work/out/arch/arm64/boot"
+cp -f "$OUT/arch/arm64/boot/Image.gz" "$KIT_DIR/work/out/arch/arm64/boot/Image.gz"
+KERNEL_IMG="$KIT_DIR/work/out/arch/arm64/boot/Image.gz"
 [ -s "$KERNEL_IMG" ] || die "build failed: Image.gz not found"
 
 # --- optional: device-tree blobs (fallback for pack_boot.sh if the
