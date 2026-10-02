@@ -150,7 +150,16 @@ if ! make -C "$SRC" O="$OUT" -j"$JOBS" \
   echo "==============================================================="
   echo "BUILD FAILED — showing error context from $BUILD_LOG"
   echo "==============================================================="
-  grep -n -iE "error|undefined|cannot|no such|not found" "$BUILD_LOG" | head -n 40 || true
+  echo "---- make/compiler error lines ----"
+  grep -n -E "\*\*\*.*Error |: error:|errors? generated" "$BUILD_LOG" | head -n 30 || true
+  FIRST_ERR=$(grep -n -E "\*\*\*.*Error |: error:" "$BUILD_LOG" | head -n1 | cut -d: -f1)
+  if [ -n "$FIRST_ERR" ]; then
+      START=$((FIRST_ERR > 35 ? FIRST_ERR - 35 : 1))
+      echo ""
+      echo "---- build.log context around first error (lines $START..$((FIRST_ERR + 8))) ----"
+      sed -n "${START},$((FIRST_ERR + 8))p" "$BUILD_LOG"
+  fi
+  echo ""
   echo "---- last 90 lines of build log ----"
   tail -n 90 "$BUILD_LOG"
   exit 1
